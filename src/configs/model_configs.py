@@ -50,4 +50,41 @@ config_bert = {
   "layer_norm_eps": 1e-12,
   "max_position_embeddings": 512,
   "model_type": "bert",
-  "num_attention_heads": 1
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "pad_token_id": 0,
+  "type_vocab_size": 2,
+  "vocab_size": 30522,
+  "fusion_layer": 6,
+  "encoder_width": 768
+}
+
+albef_no_distill_config = {
+    "text_encoder": "bert-base-uncased",
+    "text_decoder": "bert-base-uncased",
+    "image_res": 384,
+    "visual_input_type": "pil-image",
+    "bert_config": config_bert,
+    "batch2inputs_converter": convert_batch_to_albef_input_dict,
+    "distill": False,
+    "encoder_class": ALBEFWrapper,
+    "encoder_name": "albef_no_distill",
+}
+
+albef_distill_config = {
+    "text_encoder": "bert-base-uncased",
+    "text_decoder": "bert-base-uncased",
+    "image_res": 384,
+    "visual_input_type": "pil-image",
+    "bert_config": config_bert,
+    "distill": True,
+    "batch2inputs_converter": convert_batch_to_albef_input_dict,
+    "encoder_class": ALBEFWrapper,
+    "encoder_name": "albef_distill",
+}
+
+model_configs = {
+    "vilt": vilt_config,
+    "albef_distill": albef_distill_config,
+    "albef_no_distill": albef_no_distill_config,
+}
