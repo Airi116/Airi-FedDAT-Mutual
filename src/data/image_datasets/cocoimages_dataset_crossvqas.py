@@ -52,3 +52,46 @@ class MSCOCOImagesDataset(Dataset):
                 image_id = fn.strip('.jpg')
             elif task_key in ['med']:
                 image_id = fn.strip('.jpg').split('/')[-1]
+            elif task_key in ['art']:
+                image_id = int(fn.strip('.jpg').split('-')[0])
+            if task_key in ['art', 'med']:
+                self.imageid2filename[image_id] = os.path.join(self.images_dir[0], fn)
+            else:
+                if 'train' in fn:
+                    self.imageid2filename[image_id] = os.path.join(self.images_dir[0], fn)
+                elif 'val' in fn:
+                    self.imageid2filename[image_id] = os.path.join(self.images_dir[1], fn)
+                elif 'test' in fn:
+                    self.imageid2filename[image_id] = os.path.join(self.images_dir[2], fn)
+
+        self.imageids = list(set(list(self.imageid2filename.keys())))
+
+        # image_filenames = os.listdir(self.images_dir)
+        # self.imageid2filename = {}
+        # for fn in image_filenames:
+        #     fn = fn.split('_')[-1]
+        #     image_id = int(fn.strip('.jpg'))
+        #     self.imageid2filename[image_id] = os.path.join(self.images_dir, fn)
+        # self.imageids = list(set(list(self.imageid2filename.keys())))
+
+        self.raw_transform = T.Compose([
+            T.Resize(image_size),
+            T.ToTensor(),  # [0, 1]
+            T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # [-1, 1]
+        ])
+
+        self.pil_transform = T.Resize(size=384, max_size=640)
+
+
+    def get_image_data(self, image_id: str):
+
+        '''
+        Returns image data according to required visual_input_type. Output format varies by visual_input_type
+        '''
+
+        if self.visual_input_type == 'pil-image':
+            return self.get_pil_image(image_id)
+        if self.visual_input_type == 'raw':
+            return self.get_raw_image_tensor(image_id)
+        elif self.visual_input_type == 'fast-rcnn':
+  
