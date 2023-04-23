@@ -53,4 +53,52 @@ class MSCOCOImagesDataset(Dataset):
         self.pil_transform = T.Resize(size=384, max_size=640)
 
 
-    def get_image_data(self, im
+    def get_image_data(self, image_id: str):
+
+        '''
+        Returns image data according to required visual_input_type. Output format varies by visual_input_type
+        '''
+
+        if self.visual_input_type == 'pil-image':
+            return self.get_pil_image(image_id)
+
+        if self.visual_input_type == 'raw':
+            return self.get_raw_image_tensor(image_id)
+
+        elif self.visual_input_type == 'fast-rcnn':
+            raise NotImplementedError("Have not implemented Fast-RCNN feature inputs for MS-COCO images!")
+
+    def get_pil_image(self, image_id: str) -> Image:
+        '''
+        Loads image corresponding to image_id, re-sizes and returns PIL.Image object
+        '''
+
+        assert image_id in self.imageid2filename.keys()
+        image_fn = self.imageid2filename[image_id]
+        image = Image.open(image_fn)
+        image = image.convert('RGB')
+        if min(list(image.size)) > 384 or hasattr(self, 'use_albef'):
+            image = self.pil_transform(image)
+        return image
+
+    def get_raw_image_tensor(self, image_id: str) -> torch.Tensor:
+        '''
+        Loads image corresponding to image_id, re-sizes, and returns tensor of size (3, W, H)
+        '''
+
+        assert image_id in self.imageid2filename.keys()
+        image_fn = self.imageid2filename[image_id]
+        image = Image.open(image_fn)
+        image = image.convert('RGB')
+
+        image_tensor = self.raw_transform(image)
+
+        image.close()
+        return image_tensor         # (B, 3, W, H)
+
+if __name__ == '__main__':
+
+    dataset = MSCOCOImagesDataset('/data/datasets/MCL/ms-coco/', 'raw')
+    imgid = dataset.imageids[0]
+    x = dataset.get_image_data(imgid)
+    print(x.shape)
