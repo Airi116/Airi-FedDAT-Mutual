@@ -94,4 +94,32 @@ class MSCOCOImagesDataset(Dataset):
         if self.visual_input_type == 'raw':
             return self.get_raw_image_tensor(image_id)
         elif self.visual_input_type == 'fast-rcnn':
-  
+            raise NotImplementedError("Have not implemented Fast-RCNN feature inputs for MS-COCO images!")
+
+    def get_pil_image(self, image_id: str) -> Image:
+        '''
+        Loads image corresponding to image_id, re-sizes and returns PIL.Image object
+        '''
+
+        assert image_id in self.imageid2filename.keys()
+        image_fn = self.imageid2filename[image_id]
+        image = Image.open(image_fn)
+        image = image.convert('RGB')
+        if min(list(image.size)) > 384 or hasattr(self, 'use_albef'):
+            image = self.pil_transform(image)
+        return image
+
+    def get_raw_image_tensor(self, image_id: str) -> torch.Tensor:
+        '''
+        Loads image corresponding to image_id, re-sizes, and returns tensor of size (3, W, H)
+        '''
+
+        assert image_id in self.imageid2filename.keys()
+        image_fn = self.imageid2filename[image_id]
+        image = Image.open(image_fn)
+        image = image.convert('RGB')
+
+        image_tensor = self.raw_transform(image)
+
+        image.close()
+        return image_tensor  # (B, 3, W, H)
