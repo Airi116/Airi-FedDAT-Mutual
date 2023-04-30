@@ -92,4 +92,45 @@ class VQADataset(Dataset):
             self.questions_file = os.path.join(file_root, "art/art_{}.json".format(split))
             self.ans2label_file = os.path.join(file_root, "art/ans2label_small.pkl".format(split))
         elif "gqa" in task_key:
-            self.ans2labe
+            self.ans2label_file = file_root + "GQA/ans2label_fed.pkl"
+        elif "vizwiz" in task_key:
+            self.ans2label_file = file_root + "vizwiz/ans2label_fed.pkl"
+        elif "clove_scene" in task_key:
+            scene_key = task_key.replace("clove_", "")
+            root = "/CLOVE/json/scene"
+            for fname in os.listdir(root):
+                if scene_key in fname and 'ans2label' in fname:
+                    break
+            self.ans2label_file = os.path.join(root, fname)
+        elif "clove_function" in task_key:
+            k = task_key.replace("clove_function_", "")
+            function_key = {"a": "attribute",
+                 "b": "knowledge",
+                 "c": "logical",
+                 "d": "object",
+                 "e": "relation",
+            }[k]
+
+            root = file_root + "/CLOVE/json/function"
+            for fname in os.listdir(root):
+                if function_key in fname and 'ans2label' in fname:
+                    break
+            self.ans2label_file = os.path.join(root, fname)
+
+        # Load mapping from answers to labels
+        self.ans2label = pkl.load(open(self.ans2label_file, "rb"))
+        self.label2ans = {v: k for k, v in self.ans2label.items()}
+        self.num_labels = 100 # len(self.label2ans)
+
+        self.cached_data_file = os.path.join(
+            self.data_dir, "cached_vqa_data", "vqa_{}.pkl".format(split)
+        )
+        if task_key in ["gqa", "vizwiz"]:
+            self.cached_data_file = os.path.join(
+                self.data_dir, "{}_fed.pkl".format(split.split('_')[0])
+            )
+        elif "clove" in task_key:
+            if "test" in split:
+                self.cached_data_file = self.ans2label_file.replace("ans2label", "val")
+            else:
+                self.cached_data_file = self.ans2label_file.
