@@ -133,4 +133,48 @@ class VQADataset(Dataset):
             if "test" in split:
                 self.cached_data_file = self.ans2label_file.replace("ans2label", "val")
             else:
-                self.cached_data_file = self.ans2label_file.
+                self.cached_data_file = self.ans2label_file.replace("ans2label", split.split('_')[0])
+
+        if os.path.isfile(self.cached_data_file):
+            # Load cached data
+            # self.data = pkl.load(open(self.cached_data_file, "rb"))
+            # if not os.path.exists(self.cached_data_file):
+            if task_key not in ["gqa", "vizwiz"] and "clove" not in task_key:
+                p = self.cached_data_file.replace('.', '_fed.')
+            else:
+                p = self.cached_data_file
+            self.data = pkl.load(open(p, "rb"))
+            for d in self.data:
+                if "question_input_ids" not in d.keys():
+                    d["question_input_ids"] = []
+            random.shuffle(self.data)
+            # ct = 0
+            # temp = []
+            # for d in self.data:
+            #     f = True
+            #     for l in d["labels"]:
+            #         if l>=100:
+            #             f = False
+            #             break
+            #     if f and len(d["labels"])>0:
+            #         temp.append(d)
+            # self.data = []
+            # for d in temp:
+            #     if 'train' in self.split:
+            #         if random.random() <= 2500.0/len(temp):
+            #             self.data.append(d)
+            #     else:
+            #         if random.random() <= 500.0/len(temp):
+            #             self.data.append(d)
+            # pkl.dump(self.data, open(p, "wb"))
+
+        else:
+            # Create map from question id to question
+            # vqav2 & abstractqq
+            # questions = json.load(open(self.questions_file))['questions']
+            questions = json.load(open(self.questions_file))
+            qid2qdata = {x["question_id"]: x for x in questions}
+
+            # Create data for each annotation
+            # vqav2 & abstract
+            # annotations = json.load(open(s
