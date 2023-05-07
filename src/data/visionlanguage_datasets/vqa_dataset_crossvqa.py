@@ -177,4 +177,37 @@ class VQADataset(Dataset):
 
             # Create data for each annotation
             # vqav2 & abstract
-            # annotations = json.load(open(s
+            # annotations = json.load(open(self.annotations_file))['annotations']
+            annotations = json.load(open(self.annotations_file))
+            self.data = []
+            # annotations_dict = {x['question_id']: x for x in annotations}
+            # for ques in questions:
+            #   qid = ques['question_id']
+            #   image_id = int(ques['image'].split('/')[-1].split('.')[0].split('_')[-1])
+            #   anno = annotations_dict[qid]
+            #   assert image_id == anno['image_id']
+            for anno in annotations:
+                qid = anno["question_id"]
+                # vqav2 & abstract
+                # image_id = int(anno['image'].split('/')[-1].split('.')[0].split('_')[-1])
+                # pvqa
+                image_id = anno["image"].split("/")[-1].split(".")[0]
+                # image_id = anno['image'].strip('.jpg').split('/')[-1]
+                # image_id = int(anno['image'].strip('.jpg').split('-')[0])
+
+                # Retrieve the question for this annotation
+                qdata = qid2qdata[qid]
+                # assert qdata['image_id'] == image_id
+                # qdata_img_id = int(qdata['image'].split('/')[-1].split('.')[0].split('_')[-1])
+                # pvqa
+                qdata_img_id = qdata["image"].split("/")[-1].split(".")[0]
+                # qdata_img_id = qdata['image'].strip('.jpg').split('/')[-1]
+                # qdata_img_id = int(qdata['image'].strip('.jpg').split('-')[0])
+                assert qdata_img_id == image_id
+                question = qdata["question"]
+                if self.tokenizer is not None:
+                    tokens = self.tokenizer.tokenize(question)
+                    input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
+                else:
+                    tokens = []
+                    input_ids = []
