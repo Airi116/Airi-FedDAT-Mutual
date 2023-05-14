@@ -211,3 +211,46 @@ class VQADataset(Dataset):
                 else:
                     tokens = []
                     input_ids = []
+
+                # Map from each crowdsourced answer to occurrences in annotation
+                # answers = [a['answer'] for a in anno['answers']]
+                answers = anno["answer"]
+                answer_count = defaultdict(int)
+                for ans in answers:
+                    answer_count[ans] += 1
+
+                # Get label and score (0.3/0.6/1) corresponding to each crowdsourced answer
+                labels = []
+                scores = []
+                answers = []
+                for answer in answer_count:
+                    if answer not in self.ans2label:
+                        continue
+                    labels.append(self.ans2label[answer])
+                    if task_key in ["toronto", "pvqa", "med", "art", "gqa"] or "clova" in task_key:
+                        score = 1 / answer_count[answer]
+                    else:
+                        score = get_score(answer_count[answer])
+                    scores.append(score)
+                    answers.append(answer)
+                correct_answer = answers[0]
+
+                # Store pre-processed example
+                example = {
+                    "question_id": qid,
+                    "image_id": image_id,
+                    "question": question,
+                    "question_input_ids": input_ids,
+                    "correct_answer": correct_answer,
+                    "labels": labels,
+                    "answers": answers,
+                    "scores": scores,
+                }
+            # if not os.path.isdir(self.cached_data_file):
+            #     os.makedirs(self.cached_data_file)
+            pkl.dump(self.data, open(self.cached_data_file, "wb"))
+
+        self.n_examples = len(self.data)
+        # for data in self.data:
+        #    data['correct_answer'] = data['correct_answer'][0]
+        # pkl.d
