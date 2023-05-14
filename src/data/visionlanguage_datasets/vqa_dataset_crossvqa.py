@@ -301,4 +301,58 @@ class VQADataset(Dataset):
             self.answer_list = list(self.ans2label.keys())[:100]
             self.transform = transform
             self.eos = "[SEP]"
-       
+            self.max_ques_words = 30
+
+            if not 'train' in self.split:
+                self.max_ques_words = 50  # do not limit question length during test
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index: int):
+
+        """
+        Args:
+        index : index of element in self.data to return as data instance
+
+        Returns:
+        dictionary containing inputs and targets for model to do VQA
+
+        """
+        if self.encoder_type == "vilt":
+            example  = self.data[index]
+            question_id = example["question_id"]
+
+            # Tokenize the input question
+            question = example["question"]
+            input_ids = example["question_input_ids"]
+
+            # Get the image tensor from ImageDataset
+            image_id = example["image_id"]
+            image = self.images_dataset.get_image_data(image_id)
+
+            labels = example["labels"]
+            scores = example["scores"]
+            target_scores = target_tensor(self.num_labels, labels, scores)
+
+            return {
+                "question": question,
+                "input_ids": input_ids,
+                "image": image,
+                "labels": labels,
+                "target_scores": target_scores,
+                "question_id": question_id,
+            }
+
+        else:
+
+            # for albef
+            ann = self.data[index]
+            image = self.images_dataset.get_image_data(ann["image_id"])
+            if not 'train' in self.split:
+                question = pre_question(ann["question"], self.max_ques_words)
+                if self.task_key == 'abstract' or self.task_key == 'art':
+                    while len(ann["labels"])<10:
+                        ann["labels"].append(-1)
+                gt = ann["labels"]
+     
