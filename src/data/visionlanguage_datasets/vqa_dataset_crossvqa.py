@@ -253,4 +253,52 @@ class VQADataset(Dataset):
         self.n_examples = len(self.data)
         # for data in self.data:
         #    data['correct_answer'] = data['correct_answer'][0]
-        # pkl.d
+        # pkl.dump(self.data, open(self.cached_data_file, 'wb'))
+        if task_key == "abstract":
+            if torch.distributed.get_rank() == 0:
+                logger.info(
+                    "Loaded VQA abstract {} dataset, len:{}".format(
+                        self.split, len(self.data)
+                    )
+                )
+        elif task_key == "toronto":
+            if torch.distributed.get_rank() == 0:
+                logger.info(
+                    "Loaded toronto {} dataset, len:{}".format(
+                        self.split, len(self.data)
+                    )
+                )
+        elif task_key == "med":
+            if torch.distributed.get_rank() == 0:
+                logger.info(
+                    "Loaded Med2019 {} dataset, len:{}".format(
+                        self.split, len(self.data)
+                    )
+                )
+        elif task_key == "pvqa":
+            if torch.distributed.get_rank() == 0:
+                logger.info(
+                    "Loaded PathVQA {} dataset, len:{}".format(
+                        self.split, len(self.data)
+                    )
+                )
+        elif task_key == "art":
+            if torch.distributed.get_rank() == 0:
+                logger.info(
+                    "Loaded AQUA {} dataset, len:{}".format(
+                        self.split, len(self.data)
+                    )
+                )
+        else:
+            if torch.distributed.get_rank() == 0:
+                logger.info(
+                    "Loaded VQAv2 {} dataset, len:{}".format(
+                        self.split, len(self.data)
+                    )
+                )
+
+        if self.encoder_type == 'albef':
+            self.answer_list = list(self.ans2label.keys())[:100]
+            self.transform = transform
+            self.eos = "[SEP]"
+       
