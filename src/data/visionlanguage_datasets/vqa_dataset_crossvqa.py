@@ -400,3 +400,62 @@ def vqa_batch_collate(batch: List[Dict], visual_input_type: str):
 
         input_ids_padded.append(ids_padded)
         attn_masks.append(attn_mask)
+    input_ids = torch.tensor(input_ids_padded, dtype=torch.long)
+    attn_mask = torch.tensor(attn_masks, dtype=torch.long)
+
+    # Stack the target tensors
+    batch_labels = [x["labels"] for x in batch]
+    batch_scores = [x["target_scores"] for x in batch]
+    batch_scores = torch.stack(batch_scores, dim=0)
+
+    # Depending on the visual_input_type variable, process the images accordingly
+    images = [x["image"] for x in batch]
+    images = image_collate(images, visual_input_type)
+
+    return {
+        "raw_texts": questions,
+        "input_ids": input_ids,
+        "attn_mask": attn_mask,
+        "images": images,
+        "target_scores": batch_scores,
+        "labels": batch_labels,
+    }
+
+def pre_question(question, max_ques_words):
+    question = (
+        re.sub(
+            r"([,.'!?\"()*#:;~])",
+            "",
+            question.lower(),
+        )
+        .replace("-", " ")
+        .replace("/", " ")
+    )
+    question = question.rstrip(" ")
+
+    # truncate question
+    question_words = question.split(" ")
+    if len(question_words) > max_ques_words:
+        question = " ".join(question_words[:max_ques_words])
+
+    return question
+
+def vqa_collate_fn_eval(batch):
+    # this function is used for ALBEF
+    image_list, question_list, answer_list = [], [], []
+    for image, question, answer in batch:
+        image_list.append(image)
+        question_list.append(question)
+        answer_list.append(answer)
+    return [
+        torch.stack(image_list, dim=0),
+        question_list,
+        torch.stack(answer_list, dim=0),
+    ]
+
+def vqa_collate_fn(batch):
+    # this function is used for ALBEF
+    image_list, question_list, answer_list, weight_list, n = [], [], [], [], []
+    for image, question, answer, weights in batch:
+        image_list.append(image)
+ 
