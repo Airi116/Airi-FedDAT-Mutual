@@ -355,4 +355,48 @@ class VQADataset(Dataset):
                     while len(ann["labels"])<10:
                         ann["labels"].append(-1)
                 gt = ann["labels"]
-     
+                if not isinstance(ann["labels"], list):
+                    gt = [gt]
+                gt = torch.Tensor(gt).long()
+                return image, question, gt
+
+            else:
+                question = pre_question(ann["question"], self.max_ques_words)
+                answer_weight = {}
+                for answer in ann["answers"]:
+                    if answer in answer_weight.keys():
+                        answer_weight[answer] += 1 / len(ann["answers"])
+                    else:
+                        answer_weight[answer] = 1 / len(ann["answers"])
+
+                answers = list(answer_weight.keys())
+                weights = list(answer_weight.values())
+                answers = [answer + self.eos for answer in answers]
+                return image, question, answers, weights
+
+def vqa_batch_collate(batch: List[Dict], visual_input_type: str):
+    """
+    Collates each model input for all batch items into a single model input (e.g. converts a list of input_ids into a matrix of size (batch_size, max_len))
+
+    Args:
+    batch - list of batch items, each item being a dictionary returned by Dataset's __getitem__ method
+    visual_input_type: string which specifies the type of visual input
+
+    Returns:
+    Dictionary containing batched inputs and outputs
+    """
+
+    pad_token = 0  # tokenizer.pad_token_id
+
+    # Pad the text inputs
+    questions = [x["question"] for x in batch]
+    input_ids = [x["input_ids"] for x in batch]
+    max_len = max([len(x) for x in input_ids])
+    input_ids_padded = []
+    attn_masks = []
+    for i in range(len(input_ids)):
+        ids_padded = input_ids[i] + [pad_token] * (max_len - len(input_ids[i]))
+        attn_mask = [1] * len(input_ids[i]) + [0] * (max_len - len(input_ids[i]))
+
+        input_ids_padded.append(ids_padded)
+        attn_masks.append(attn_mask)
