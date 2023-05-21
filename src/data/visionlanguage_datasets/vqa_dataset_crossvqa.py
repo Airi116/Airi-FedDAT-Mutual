@@ -458,4 +458,64 @@ def vqa_collate_fn(batch):
     image_list, question_list, answer_list, weight_list, n = [], [], [], [], []
     for image, question, answer, weights in batch:
         image_list.append(image)
- 
+        question_list.append(question)
+        weight_list += weights
+        answer_list += answer #[1,2,3] [2,3,4] [1,2,3,2,3,4]
+        n.append(len(answer))
+    return [
+        torch.stack(image_list, dim=0),
+        question_list,
+        answer_list,
+        torch.Tensor(weight_list),
+        n,
+    ]
+
+
+def build_vqa_vilt_dataloader(
+    logger,
+    args,
+    data_dir: str,
+    images_dataset: MSCOCOImagesDataset,
+    split: str,
+    task_key: str,
+    visual_input_type: str,
+    client_id=-1,
+    **kwargs
+) -> torch.utils.data.DataLoader:
+    """
+    Creates the VQA Dataloader, which gives batches of VQA inputs and outputs
+
+    Args:
+    data_dir : path containing VQA questions and annotations.
+    images_dataset : instance of MSCOCOImagesDataset, that is used to retrieve the MS-COCO image for each question
+    split: either train/val split
+    visual_input_type: format of visual input to model
+
+    Returns:
+    DataLoader object
+    """
+
+    batch_size = args.batch_size
+    shuffle = True if split == "train" or "train_small" else False
+
+    dataset = VQADataset(logger, data_dir, images_dataset, split, task_key, "vilt", client_id=client_id, **kwargs)
+    if torch.distributed.get_rank() == 0:
+        logger.info(
+            "Dataset for ViLT domain:{}, split:{}, len:{}, bs:{}".format(
+                task_key, split, len(dataset), batch_size
+            )
+        )
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        num_workers=args.num_workers,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        collate_fn=lambda x: vqa_batch_collate(x, visual_input_type),
+    )
+    return dataloader
+
+
+def build_vqa_albef_dataloader(
+    logger, args, data_dir, images_dataset, vqa_config, split: str, task_key: str, client_id=-1, **kwargs
+) -> torch.utils.data.DataLo
