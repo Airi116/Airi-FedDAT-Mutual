@@ -518,4 +518,70 @@ def build_vqa_vilt_dataloader(
 
 def build_vqa_albef_dataloader(
     logger, args, data_dir, images_dataset, vqa_config, split: str, task_key: str, client_id=-1, **kwargs
-) -> torch.utils.data.DataLo
+) -> torch.utils.data.DataLoader:
+    """
+    Creates the VQA Dataloader, which gives batches of VQA inputs and outputs
+
+    Args:
+    split: either train/val split
+    visual_input_type: format of visual input to model
+
+    Returns:
+    DataLoader object
+    """
+
+    normalize = transforms.Normalize(
+        (0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)
+    )
+    train_transform = transforms.Compose(
+        [
+            transforms.Resize((384, 384), interpolation=Image.BICUBIC),
+            # transforms.RandomResizedCrop(
+            #     384, scale=(0.5, 1.0), interpolation=Image.BICUBIC
+            # ),
+            # transforms.RandomHorizontalFlip(),
+            # RandomAugment(
+            #     2,
+            #     7,
+            #     isPIL=True,
+            #     augs=[
+            #         "Identity",
+            #         "AutoContrast",
+            #         "Equalize",
+            #         "Brightness",
+            #         "Sharpness",
+            #         "ShearX",
+            #         "ShearY",
+            #         "TranslateX",
+            #         "TranslateY",
+            #         "Rotate",
+            #     ],
+            # ),
+            transforms.ToTensor(),
+            normalize,
+        ]
+    )
+
+    test_transform = transforms.Compose(
+        [
+            # transforms.Resize(size=384, max_size=640),
+            transforms.Resize((384, 384), interpolation=Image.BICUBIC),
+            transforms.ToTensor(),
+            normalize,
+        ]
+    )
+
+    if "train" in split:
+        transform = train_transform
+        shuffle = True
+        drop_last = True
+        collate_fn = vqa_collate_fn
+        batch_size = args.batch_size
+    else:
+        transform = test_transform
+        shuffle = False
+        drop_last = False
+        collate_fn = vqa_collate_fn_eval
+        batch_size = args.val_batch_size
+
+    dataset = VQADataset
