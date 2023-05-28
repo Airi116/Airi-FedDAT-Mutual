@@ -584,4 +584,55 @@ def build_vqa_albef_dataloader(
         collate_fn = vqa_collate_fn_eval
         batch_size = args.val_batch_size
 
-    dataset = VQADataset
+    dataset = VQADataset(logger, data_dir, images_dataset, split, task_key, "albef", transform, client_id=client_id)
+
+    if torch.distributed.get_rank() == 0:
+        logger.info(
+            "Created ALBEF VQA {} {} dataloader with len of {}, batch size of {}".format(
+                task_key, split, len(dataset), batch_size
+            )
+        )
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        num_workers=args.num_workers,
+        batch_size=batch_size,
+        pin_memory=True,
+        shuffle=shuffle,
+        drop_last=drop_last,
+        collate_fn=collate_fn,
+    )
+
+    return dataloader
+
+
+if __name__ == "__main__":
+    data_dir = "/data/datasets/MCL/vqav2/"
+
+    class Args:
+        def __init__(self):
+            self.batch_size = 4
+            self.shuffle = True
+            self.num_workers = 2
+            self.visual_input_type = "pil-image"
+
+    args = Args()
+
+    from transformers import BertTokenizer
+
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+
+    images_dataset = MSCOCOImagesDataset(
+        "/data/datasets/MCL/ms-coco/", args.visual_input_type
+    )
+    vqa_dataloader = build_vqa_vilt_dataloader(
+        args,
+        data_dir,
+        images_dataset,
+        "val",
+        args.visual_input_type,
+        tokenizer=tokenizer,
+    )
+
+    for batch in vqa_dataloader:
+        pdb.set_trace()
