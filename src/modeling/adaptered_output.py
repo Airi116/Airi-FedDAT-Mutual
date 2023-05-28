@@ -61,4 +61,19 @@ class Adaptered_BertOutput(nn.Module):
     def forward(self, hidden_states, input_tensor):
         hidden_states = self.layer.dense(hidden_states)
         hidden_states = self.layer.dropout(hidden_states)
-        hidden_states = self.adapter.adapter_layer_forward_bert(hidden_states, input_ten
+        hidden_states = self.adapter.adapter_layer_forward_bert(hidden_states, input_tensor, self.layer.LayerNorm)
+        return hidden_states
+
+class Adaptered_ViltOutput(nn.Module):
+    def __init__(self, layer, adapter_config) -> None:
+        super().__init__()
+        self.layer = layer
+        self.adapter = Adapter(**adapter_config, model_dim=768)
+
+    def forward(self, hidden_states: torch.Tensor, input_tensor: torch.Tensor) -> torch.Tensor:
+        hidden_states = self.layer.dense(hidden_states)
+        hidden_states = self.layer.dropout(hidden_states)
+        hidden_states = hidden_states + input_tensor
+
+        hidden_states = self.adapter(hidden_states, hidden_states)
+        return hidden_states
