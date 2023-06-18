@@ -112,4 +112,48 @@ class Adapter(nn.Module):
         if layer_norm:
             hidden_states = layer_norm(hidden_states + input_tensor)
         else:
-      
+            hidden_states = hidden_states + input_tensor
+        return hidden_states
+
+    def get_agg_out(self, outs, weights):
+        agg_out = weights[:, :, 0].unsqueeze(-1) * outs[0]
+        for i, out in enumerate(outs[1:]):
+            agg_out += weights[:, :, i+1].unsqueeze(-1) * out
+        return agg_out
+
+    def forward(self, hidden_states, input_tensor):
+        if not self.gating:
+            # one adapter for all
+            down = self.active_adapter_down(hidden_states)
+            down = self.actv(down)
+            up = self.active_adapter_up(down)
+
+            hidden_states = input_tensor + up
+
+        elif hasattr(self, 'adapter_2_down'):
+            up_outs = []
+            for i in [0, 2]:
+                adapter_down = getattr(self, f'adapter_{i}_down')
+                down_out = adapter_down(hidden_states)
+                down_out = self.actv(down_out)
+                adapter_up = getattr(self, f'adapter_{i}_up')
+                up_out = adapter_up(down_out)
+                up_outs.append(up_out)
+
+            # weight_up = F.softmax(self.gating_module(hidden_states) + 10**-6, dim=-1)
+            weight_up = torch.ones(list(up_out.shape)[:-1] + [2]).to('cuda') * 0.5
+            agg_up_out = self.get_agg_out(up_outs, weight_up)
+            hidden_states = input_tensor + agg_up_out * self.scaling
+
+        else:
+            # one gating for all
+            up_outs = []
+            for i in range(2):
+                adapter_down = getattr(self, f'adapter_{i}_down')
+                down_out = adapter_down(hidden_states)
+                down_out = self.actv(down_out)
+                adapter_up = getattr(self, f'adapter_{i}_up')
+                up_out = adapter_up(down_out)
+                up_outs.append(up_out)
+
+            # weight_up = F.softmax(self.gating_module(hidden_st
