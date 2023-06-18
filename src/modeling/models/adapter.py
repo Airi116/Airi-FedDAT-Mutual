@@ -156,4 +156,8 @@ class Adapter(nn.Module):
                 up_out = adapter_up(down_out)
                 up_outs.append(up_out)
 
-            # weight_up = F.softmax(self.gating_module(hidden_st
+            # weight_up = F.softmax(self.gating_module(hidden_states) + 10**-6, dim=-1)
+            weight_up = torch.ones(list(up_out.shape)[:-1] + [2]).to('cuda') * 0.5
+            agg_up_out = self.get_agg_out(up_outs, weight_up)
+            hidden_states = input_tensor + agg_up_out * self.scaling
+        return hidden_states
