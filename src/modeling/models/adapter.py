@@ -69,4 +69,47 @@ class Adapter(nn.Module):
             self.active_adapter_up = getattr(self, f'{name}_up')
 
         if name == 'adapter_0':
-            for m in [s
+            for m in [self.adapter_0_down, self.adapter_0_up]:
+                for p in m.parameters():
+                    p.requires_grad = True
+            for m in [self.adapter_1_down, self.adapter_1_up]:
+                for p in m.parameters():
+                    p.requires_grad = False
+
+        elif name == 'adapter_1':
+            for m in [self.adapter_1_down, self.adapter_1_up]:
+                for p in m.parameters():
+                    p.requires_grad = True
+            for m in [self.adapter_0_down, self.adapter_0_up]:
+                for p in m.parameters():
+                    p.requires_grad = False
+
+        elif isinstance(name, list):
+            for n in name:
+                m = getattr(self, f'{n}_down')
+                for p in m.parameters():
+                    p.requires_grad = True
+                m = getattr(self, f'{n}_up')
+                for p in m.parameters():
+                    p.requires_grad = True
+        return
+
+    def adapter_layer_forward_bert(self, hidden_states, input_tensor, layer_norm):
+        hidden_states, residual = self.pre_forward(hidden_states, input_tensor, layer_norm)
+        hidden_states = self.forward(hidden_states, residual)
+        hidden_states = self.post_forward(hidden_states, input_tensor, layer_norm)
+        return hidden_states
+
+    def pre_forward(self, hidden_states, input_tensor, layer_norm):
+        residual = hidden_states # residual_before_ln = True
+        if layer_norm:
+            hidden_states = layer_norm(hidden_states + input_tensor)
+        else:
+            hidden_states = hidden_states + input_tensor
+        return hidden_states, residual
+
+    def post_forward(self, hidden_states, input_tensor, layer_norm):
+        if layer_norm:
+            hidden_states = layer_norm(hidden_states + input_tensor)
+        else:
+      
