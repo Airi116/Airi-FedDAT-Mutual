@@ -38,4 +38,32 @@ class ALBEF(nn.Module):
 
         # self.text_encoder = BertModel.from_pretrained(text_encoder,force_download=True, config=config_encoder, add_pooling_layer=False)
         BERT_LOCAL_PATH = "/home/stud/yyang/CARVEN/bert-base-uncased"
-        
+        self.text_encoder = BertModel.from_pretrained(BERT_LOCAL_PATH, local_files_only=True, config=config_encoder, add_pooling_layer=False)
+        self.text_decoder = BertLMHeadModel.from_pretrained(BERT_LOCAL_PATH, local_files_only=True, config=config_decoder)
+
+        if self.distill:
+            self.visual_encoder_m = VisionTransformer(
+                img_size=config["image_res"], patch_size=16, embed_dim=768, depth=12, num_heads=12,
+                mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                adapter_config=config["adapter_config"]  if 'adapter_config' in config.keys() else None)
+            ##online model changed to local model
+            self.text_encoder_m = BertModel.from_pretrained(BERT_LOCAL_PATH, local_files_only=True, config=config_encoder, add_pooling_layer=False)
+            self.text_decoder_m = BertLMHeadModel.from_pretrained(BERT_LOCAL_PATH, local_files_only=True, config=config_decoder)
+            self.model_pairs = [[self.visual_encoder, self.visual_encoder_m],
+                                [self.text_encoder, self.text_encoder_m],
+                                [self.text_decoder, self.text_decoder_m],
+                                ]
+            self.copy_params()
+            self.momentum = 0.995
+
+    def set_active_gating(self):
+        for i in range(len(self.text_encoder.encoder.layer)):
+            self.text_encoder.encoder.layer[i].output.adapter.gating_activated = True
+
+        for i in range(len(self.text_decoder.bert.encoder.layer)):
+            self.text_decoder.bert.encoder.layer[i].output.adapter.gating_activated = True
+
+        for i in range(len(self.visual_encoder.blocks)):
+            self.visual_encoder.blocks[i].adapter.gating_activated = True
+
+    def forward(self, image, question, answer=None, alpha=0, k=None, w
