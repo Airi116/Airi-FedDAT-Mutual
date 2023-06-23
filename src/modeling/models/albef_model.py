@@ -66,4 +66,41 @@ class ALBEF(nn.Module):
         for i in range(len(self.visual_encoder.blocks)):
             self.visual_encoder.blocks[i].adapter.gating_activated = True
 
-    def forward(self, image, question, answer=None, alpha=0, k=None, w
+    def forward(self, image, question, answer=None, alpha=0, k=None, weights=None, train=True, prev_f=None):
+
+        image_embeds = self.visual_encoder(image)
+        if prev_f is not None:
+            image_embeds += self.pnn_layer_visual(prev_f[0])
+
+        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(image.device)
+
+        if train:
+            """
+            k: number of answers for each question
+            weights: weight for each answer
+            """
+            answer_targets = answer.input_ids.masked_fill(answer.input_ids == self.tokenizer.pad_token_id, -100)
+
+            question_output = self.text_encoder(question.input_ids,
+                                                attention_mask=question.attention_mask,
+                                                encoder_hidden_states=image_embeds,
+                                                encoder_attention_mask=image_atts,
+                                                return_dict=True)
+            if prev_f is not None:
+                text_embeds = self.pnn_layer_text(prev_f[1])
+
+            question_states = []
+            question_atts = []
+            for b, n in enumerate(k):
+                question_states += [question_output.last_hidden_state[b]] * n
+                question_atts += [question.attention_mask[b]] * n
+            question_states = torch.stack(question_states, 0)
+            question_atts = torch.stack(question_atts, 0)
+
+            if self.distill:
+                with torch.no_grad():
+                    # to do
+                    self._momentum_update()
+                    image_embeds_m = self.visual_encoder_m(image)
+                    question_output_m = self.text_encoder_m(question.input_ids,
+                             
