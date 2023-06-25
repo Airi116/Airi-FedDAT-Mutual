@@ -103,4 +103,30 @@ class ALBEF(nn.Module):
                     self._momentum_update()
                     image_embeds_m = self.visual_encoder_m(image)
                     question_output_m = self.text_encoder_m(question.input_ids,
-                             
+                                                            attention_mask=question.attention_mask,
+                                                            encoder_hidden_states=image_embeds_m,
+                                                            encoder_attention_mask=image_atts,
+                                                            return_dict=True)
+
+                    question_states_m = []
+                    for b, n in enumerate(k):
+                        question_states_m += [question_output_m.last_hidden_state[b]] * n
+                    question_states_m = torch.stack(question_states_m, 0)
+
+                    logits_m = self.text_decoder_m(answer.input_ids,
+                                                   attention_mask=answer.attention_mask,
+                                                   encoder_hidden_states=question_states_m,
+                                                   encoder_attention_mask=question_atts,
+                                                   return_logits=True,
+                                                   )
+
+                answer_output = self.text_decoder(answer.input_ids,
+                                                  attention_mask=answer.attention_mask,
+                                                  encoder_hidden_states=question_states,
+                                                  encoder_attention_mask=question_atts,
+                                                  labels=answer_targets,
+                                                  return_dict=True,
+                                                  soft_labels=F.softmax(logits_m, dim=-1),
+                                                  alpha=alpha,
+                                                  reduction="none",
+                                                  )
