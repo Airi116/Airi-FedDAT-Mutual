@@ -130,3 +130,33 @@ class ALBEF(nn.Module):
                                                   alpha=alpha,
                                                   reduction="none",
                                                   )
+            else:
+                answer_output = self.text_decoder(answer.input_ids,
+                                                  attention_mask=answer.attention_mask,
+                                                  encoder_hidden_states=question_states,
+                                                  encoder_attention_mask=question_atts,
+                                                  labels=answer_targets,
+                                                  return_dict=True,
+                                                  reduction="none",
+                                                  )
+            loss = weights * answer_output.loss
+            loss = loss.sum() / image.size(0)
+
+            return (loss, answer_output.logits[:, :-1, :].contiguous())  # logits: (batch, words, vocab_size(30522))
+
+
+        else:
+            question_output = self.text_encoder(question.input_ids,  # tokenized question
+                                                attention_mask=question.attention_mask,
+                                                encoder_hidden_states=image_embeds,
+                                                encoder_attention_mask=image_atts,
+                                                return_dict=True)  # last_hidden_state: (batch, words, 768)
+            topk_ids, topk_probs = self.rank_answer(question_output.last_hidden_state, question.attention_mask,
+                                                    answer.input_ids, answer.attention_mask, k)  # answer.input_ids: [num_answers, max_len]; k=128
+            return topk_ids, topk_probs
+
+    @torch.no_grad()
+    def copy_params(self):
+        for model_pair in self.model_pairs:
+            for param, param_m in zip(model_pair[0].parameters(), model_pair[1].parameters()):
+                param_m.data.copy
