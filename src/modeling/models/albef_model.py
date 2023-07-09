@@ -159,4 +159,37 @@ class ALBEF(nn.Module):
     def copy_params(self):
         for model_pair in self.model_pairs:
             for param, param_m in zip(model_pair[0].parameters(), model_pair[1].parameters()):
-                param_m.data.copy
+                param_m.data.copy_(param.data)  # initialize
+                param_m.requires_grad = False  # not update by gradient
+
+    @torch.no_grad()
+    def _momentum_update(self):
+        for model_pair in self.model_pairs:
+            for param, param_m in zip(model_pair[0].parameters(), model_pair[1].parameters()):
+                param_m.data = param_m.data * self.momentum + param.data * (1.0 - self.momentum)
+
+    def rank_answer(self, question_states, question_atts, answer_ids, answer_atts, k):
+        # question_states: last_hidden_state of Multimodel Encoder; answer_ids: tokenized answers
+        num_ques = question_states.size(0)
+        start_ids = answer_ids[0, 0].repeat(num_ques, 1)  # bos token
+
+        start_output = self.text_decoder(start_ids,
+                                         encoder_hidden_states=question_states,
+                                         encoder_attention_mask=question_atts,
+                                         return_dict=True,
+                                         reduction="none")  # logits: (batch, word, 30522), word here is bos token
+        logits = start_output.logits[:, 0, :]  # first token's logit, (batch, 30522)
+
+        # topk_probs: top-k probability
+        # topk_ids: [num_question, k]
+        answer_first_token = answer_ids[:, 1]  # [num_answers,]
+        prob_first_token = F.softmax(logits, dim=1).index_select(dim=1, index=answer_first_token)  # (batch, num_answers)
+        topk_probs, topk_ids = prob_first_token.topk(k, dim=1)
+
+        # answer input: [num_question*k, answer_len]
+        input_ids = []
+        input_atts = []
+        for b, topk_id in enumerate(topk_ids):
+            input_ids.append(answer_ids.index_select(dim=0, index=topk_id))
+            input_atts.append(answer_atts.index_select(dim=0, index=topk_id))
+        input_ids = torch.cat(input_ids, dim=0)  # (num_
