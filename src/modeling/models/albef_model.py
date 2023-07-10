@@ -192,4 +192,45 @@ class ALBEF(nn.Module):
         for b, topk_id in enumerate(topk_ids):
             input_ids.append(answer_ids.index_select(dim=0, index=topk_id))
             input_atts.append(answer_atts.index_select(dim=0, index=topk_id))
-        input_ids = torch.cat(input_ids, dim=0)  # (num_
+        input_ids = torch.cat(input_ids, dim=0)  # (num_question*k, answer_len)
+        input_atts = torch.cat(input_atts, dim=0)
+
+        targets_ids = input_ids.masked_fill(input_ids == self.tokenizer.pad_token_id, -100)
+
+        # repeat encoder's output for top-k answers
+        question_states = tile(question_states, 0, k)  # (num_question*k, words, 768)
+        question_atts = tile(question_atts, 0, k)
+
+        output = self.text_decoder(input_ids,  # logits(num_question*k, answer_len, 30522)
+                                   attention_mask=input_atts,
+                                   encoder_hidden_states=question_states,
+                                   encoder_attention_mask=question_atts,
+                                   labels=targets_ids,
+                                   return_dict=True,
+                                   reduction="none")
+
+        answer_loss = output.loss
+        answer_loss = answer_loss.view(input_ids.size(0), -1)  # (num_question*k, 1)
+
+        # topk_prob: first token probability
+        topk_probs = topk_probs.view(-1, 1)  # (num_question*k, 1)
+        log_probs = torch.cat([topk_probs.log(), -answer_loss], dim=1)  # (num_question*k, 2)
+
+        # re-calculate log probabilities for the answer sequences using chain rule
+        log_probs_sum = log_probs.sum(1)
+        log_probs_sum = log_probs_sum.view(num_ques, k)  # (num_question, k)
+
+        topk_probs = F.softmax(log_probs_sum, dim=-1)  # (num_question, k)
+        # get top-k after re-ranking
+        topk_probs, rerank_id = topk_probs.topk(k, dim=1)  # (num_question, k)
+        topk_ids = torch.gather(topk_ids, 1, rerank_id)  # (num_question, k)
+
+        return topk_ids, topk_probs
+
+
+def tile(x, dim, n_tile):
+    init_dim = x.size(dim)
+    repeat_idx = [1] * x.dim()
+    repeat_idx[dim] = n_tile
+    x = x.repeat(*(repeat_idx))
+    order_index = torch
