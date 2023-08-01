@@ -88,4 +88,47 @@ PRETRAINED_INIT_CONFIGURATION = {
     "bert-base-german-dbmdz-uncased": {"do_lower_case": True},
     "TurkuNLP/bert-base-finnish-cased-v1": {"do_lower_case": False},
     "TurkuNLP/bert-base-finnish-uncased-v1": {"do_lower_case": True},
-    "wietsedv/bert-base-dutch-cased": {"do_lower_case": F
+    "wietsedv/bert-base-dutch-cased": {"do_lower_case": False},
+}
+
+
+def load_vocab(vocab_file):
+    """Loads a vocabulary file into a dictionary."""
+    vocab = collections.OrderedDict()
+    with open(vocab_file, "r", encoding="utf-8") as reader:
+        tokens = reader.readlines()
+    for index, token in enumerate(tokens):
+        token = token.rstrip("\n")
+        vocab[token] = index
+    return vocab
+
+
+def whitespace_tokenize(text):
+    """Runs basic whitespace cleaning and splitting on a piece of text."""
+    text = text.strip()
+    if not text:
+        return []
+    tokens = text.split()
+    return tokens
+
+
+class BertTokenizer(PreTrainedTokenizer):
+    r"""
+    Construct a BERT tokenizer. Based on WordPiece.
+    This tokenizer inherits from :class:`~transformers.PreTrainedTokenizer` which contains most of the main methods.
+    Users should refer to this superclass for more information regarding those methods.
+    Args:
+        vocab_file (:obj:`str`):
+            File containing the vocabulary.
+        do_lower_case (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not to lowercase the input when tokenizing.
+        do_basic_tokenize (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not to do basic tokenization before WordPiece.
+        never_split (:obj:`Iterable`, `optional`):
+            Collection of tokens which will never be split during tokenization. Only has an effect when
+            :obj:`do_basic_tokenize=True`
+        unk_token (:obj:`str`, `optional`, defaults to :obj:`"[UNK]"`):
+            The unknown token. A token that is not in the vocabulary cannot be converted to an ID and is set to be this
+            token instead.
+        sep_token (:obj:`str`, `optional`, defaults to :obj:`"[SEP]"`):
+            The separator token, which is used when building a sequence from multiple 
