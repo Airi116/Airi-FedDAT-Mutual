@@ -131,4 +131,34 @@ class BertTokenizer(PreTrainedTokenizer):
             The unknown token. A token that is not in the vocabulary cannot be converted to an ID and is set to be this
             token instead.
         sep_token (:obj:`str`, `optional`, defaults to :obj:`"[SEP]"`):
-            The separator token, which is used when building a sequence from multiple 
+            The separator token, which is used when building a sequence from multiple sequences, e.g. two sequences for
+            sequence classification or for a text and a question for question answering. It is also used as the last
+            token of a sequence built with special tokens.
+        pad_token (:obj:`str`, `optional`, defaults to :obj:`"[PAD]"`):
+            The token used for padding, for example when batching sequences of different lengths.
+        cls_token (:obj:`str`, `optional`, defaults to :obj:`"[CLS]"`):
+            The classifier token which is used when doing sequence classification (classification of the whole sequence
+            instead of per-token classification). It is the first token of the sequence when built with special tokens.
+        mask_token (:obj:`str`, `optional`, defaults to :obj:`"[MASK]"`):
+            The token used for masking values. This is the token used when training this model with masked language
+            modeling. This is the token which the model will try to predict.
+        tokenize_chinese_chars (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not to tokenize Chinese characters.
+            This should likely be deactivated for Japanese (see this `issue
+            <https://github.com/huggingface/transformers/issues/328>`__).
+        strip_accents: (:obj:`bool`, `optional`):
+            Whether or not to strip all accents. If this option is not specified, then it will be determined by the
+            value for :obj:`lowercase` (as in the original BERT).
+    """
+
+    vocab_files_names = VOCAB_FILES_NAMES
+    pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
+    pretrained_init_configuration = PRETRAINED_INIT_CONFIGURATION
+    max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
+
+    def __init__(
+            self,
+            vocab_file,
+            do_lower_case=True,
+            do_basic_tokenize=True,
+            nev
