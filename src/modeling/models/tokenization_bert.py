@@ -324,4 +324,38 @@ class BertTokenizer(PreTrainedTokenizer):
             )
         else:
             vocab_file = (filename_prefix + "-" if filename_prefix else "") + save_directory
-        with open(vocab_file, "w", encoding="
+        with open(vocab_file, "w", encoding="utf-8") as writer:
+            for token, token_index in sorted(self.vocab.items(), key=lambda kv: kv[1]):
+                if index != token_index:
+                    logger.warning(
+                        "Saving vocabulary to {}: vocabulary indices are not consecutive."
+                        " Please check that the vocabulary is not corrupted!".format(vocab_file)
+                    )
+                    index = token_index
+                writer.write(token + "\n")
+                index += 1
+        return (vocab_file,)
+
+
+class BasicTokenizer(object):
+    """
+    Constructs a BasicTokenizer that will run basic tokenization (punctuation splitting, lower casing, etc.).
+    Args:
+        do_lower_case (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not to lowercase the input when tokenizing.
+        never_split (:obj:`Iterable`, `optional`):
+            Collection of tokens which will never be split during tokenization. Only has an effect when
+            :obj:`do_basic_tokenize=True`
+        tokenize_chinese_chars (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not to tokenize Chinese characters.
+            This should likely be deactivated for Japanese (see this `issue
+            <https://github.com/huggingface/transformers/issues/328>`__).
+        strip_accents: (:obj:`bool`, `optional`):
+            Whether or not to strip all accents. If this option is not specified, then it will be determined by the
+            value for :obj:`lowercase` (as in the original BERT).
+    """
+
+    def __init__(self, do_lower_case=True, never_split=None, tokenize_chinese_chars=True, strip_accents=None):
+        if never_split is None:
+            never_split = []
+        self.do_lower_case
