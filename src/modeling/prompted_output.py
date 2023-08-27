@@ -21,4 +21,37 @@ def albef_prompted_forward(self, image, question, answer=None, alpha=0, k=None, 
                                         encoder_attention_mask=image_atts,
                                         return_dict=True)  # last_hidden_state: (batch, words, 768)
 
-    # text_embeds = torch.cat([question_
+    # text_embeds = torch.cat([question_output.last_hidden_state[:, :1, :],
+    #                         prompt_prompt_text,
+    #                         question_output.last_hidden_state[:, 1:, :],], dim=1)
+    if train:
+        """
+        k: number of answers for each question
+        weights: weight for each answer
+        """
+        answer_targets = answer.input_ids.masked_fill(answer.input_ids == self.tokenizer.pad_token_id, -100)
+
+        question_states = []
+        question_atts = []
+        for b, n in enumerate(k):
+            question_states += [question_output.last_hidden_state[b]] * n
+            question_atts += [question.attention_mask[b]] * n
+        question_states = torch.stack(question_states, 0)
+        question_atts = torch.stack(question_atts, 0)
+
+        answer_output = self.text_decoder(answer.input_ids,
+                                            attention_mask=answer.attention_mask,
+                                            encoder_hidden_states=question_states,
+                                            encoder_attention_mask=question_atts,
+                                            labels=answer_targets,
+                                            return_dict=True,
+                                            reduction="none",
+                                            )
+        loss = weights * answer_output.loss
+        loss = loss.sum() / image.size(0)
+
+        return (loss, answer_output.logits[:, :-1, :].contiguous())  # logits: (batch, words, vocab_size(30522))
+
+    else:
+        topk_ids, topk_probs = self.rank_answer(question_output.last_hidden_state, question.attention_mask,
+                                                answer.input_ids, answer.attention_mask, k)  # answer.input_ids: [num_ans
