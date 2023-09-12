@@ -54,4 +54,38 @@ def albef_prompted_forward(self, image, question, answer=None, alpha=0, k=None, 
 
     else:
         topk_ids, topk_probs = self.rank_answer(question_output.last_hidden_state, question.attention_mask,
-                                                answer.input_ids, answer.attention_mask, k)  # answer.input_ids: [num_ans
+                                                answer.input_ids, answer.attention_mask, k)  # answer.input_ids: [num_answers, max_len]; k=128
+        return topk_ids, topk_probs
+
+def BERTEmbeddings_prompted_forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        encoder_embeds=None,
+        encoder_hidden_states=None,
+        encoder_attention_mask=None,
+        past_key_values=None,
+        use_cache=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+        is_decoder=False,
+        mode='multi_modal',
+):
+    r"""
+    encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
+        Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention if
+        the model is configured as a decoder.
+    encoder_attention_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
+        Mask to avoid performing attention on the padding token indices of the encoder input. This mask is used in
+        the cross-attention if the model is configured as a decoder. Mask values selected in ``[0, 1]``:
+        - 1 for tokens that are **not masked**,
+        - 0 for tokens that are **masked**.
+    past_key_values (:obj:`tuple(tuple(torch.FloatTensor))` of length :obj:`config.n_layers` with each tuple having 4 tensors of shape :obj:`(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`):
+        Contains precomputed key and value hidden states of the attention blocks. Can be used to speed up decoding.
+        If :obj:`past_key_values` are used, the user can optionally input only the last :obj:`decoder_input_ids`
+        (those that don't have their past key value stat
