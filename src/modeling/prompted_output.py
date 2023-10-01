@@ -128,4 +128,38 @@ def BERTEmbeddings_prompted_forward(
     if attention_mask is None:
         attention_mask = torch.ones(((batch_size, seq_length + past_key_values_length)), device=device)
     if token_type_ids is None:
-        toke
+        token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
+
+    # If a 2D or 3D attention mask is provided for the cross-attention
+    # we need to make broadcastable to [batch_size, num_heads, seq_length, seq_length]
+    if encoder_hidden_states is not None:
+        if type(encoder_hidden_states) == list:
+            encoder_batch_size, encoder_sequence_length, _ = encoder_hidden_states[0].size()
+        else:
+            encoder_batch_size, encoder_sequence_length, _ = encoder_hidden_states.size()
+        encoder_hidden_shape = (encoder_batch_size, encoder_sequence_length)
+
+        if type(encoder_attention_mask) == list:
+            encoder_extended_attention_mask = [self.invert_attention_mask(mask) for mask in encoder_attention_mask]
+        elif encoder_attention_mask is None:
+            encoder_attention_mask = torch.ones(encoder_hidden_shape, device=device)
+            encoder_extended_attention_mask = self.invert_attention_mask(encoder_attention_mask)
+        else:
+            encoder_extended_attention_mask = self.invert_attention_mask(encoder_attention_mask)
+    else:
+        encoder_extended_attention_mask = None
+
+    # Prepare head mask if needed
+    # 1.0 in head_mask indicate we keep the head
+    # attention_probs has shape bsz x n_heads x N x N
+    # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
+    # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
+    head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
+
+    if encoder_embeds is None:
+        embedding_output = self.embeddings(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            token_type_ids=token_type_ids,
+            inputs_embeds=inputs_embeds,
+            past_key_values_length=past_key_values_length
