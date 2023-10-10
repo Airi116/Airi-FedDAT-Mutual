@@ -162,4 +162,41 @@ def BERTEmbeddings_prompted_forward(
             position_ids=position_ids,
             token_type_ids=token_type_ids,
             inputs_embeds=inputs_embeds,
-            past_key_values_length=past_key_values_length
+            past_key_values_length=past_key_values_length,
+        )
+    else:
+        embedding_output = encoder_embeds
+
+    # input_tokens_text = self.prompt_tokens_text.unsqueeze(0).expand(embedding_output.shape[0], -1).to(embedding_output.device)
+    # prompt_prompt_text = self.prompt_embedding_text(input_tokens_text) # (B, 5, 768)
+    # embedding_output = torch.cat([embedding_output[:, :1, :],
+    #                         prompt_prompt_text,
+    #                         embedding_output[:, 1:, :],], dim=1)
+    # prompt_mask_text = torch.ones(prompt_prompt_text.shape[:2], dtype=torch.long).to(embedding_output.device)
+    # attention_mask = torch.cat([attention_mask[:, :1],
+    #                             prompt_mask_text,
+    #                             attention_mask[:, 1:]], dim=1)
+    # print(attention_mask.shape)
+
+    input_shape = embedding_output.size()[:-1]
+    batch_size, seq_length = input_shape
+    # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
+    # ourselves in which case we just need to make it broadcastable to all heads.
+    extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(attention_mask, input_shape,
+                                                                                device, is_decoder)
+
+    encoder_outputs = self.encoder(
+        embedding_output,
+        attention_mask=extended_attention_mask,
+        head_mask=head_mask,
+        encoder_hidden_states=encoder_hidden_states,
+        encoder_attention_mask=encoder_extended_attention_mask,
+        past_key_values=past_key_values,
+        use_cache=use_cache,
+        output_attentions=output_attentions,
+        output_hidden_states=output_hidden_states,
+        return_dict=return_dict,
+        mode=mode,
+    )
+    sequence_output = encoder_outputs[0]
+    pooled_output = self.p
