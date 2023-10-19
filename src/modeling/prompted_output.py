@@ -246,3 +246,33 @@ def ViltEmbeddings_prompted_forward(
                             prompt_prompt_text,
                             text_embeds[:, 1:, :],], dim=1)
     prompt_mask_text = torch.ones(prompt_prompt_text.shape[:2], dtype=torch.long).to(text_embeds.device)
+    attention_mask = torch.cat([attention_mask[:, :1],
+                                prompt_mask_text,
+                                attention_mask[:, 1:]], dim=1)
+
+    input_tokens_vis = self.prompt_tokens_vis.unsqueeze(0).expand(text_embeds.shape[0], -1).to(text_embeds.device)
+    prompt_prompt_vis = self.prompt_embedding_text(input_tokens_vis) # (B, 5, 768)
+    image_embeds = torch.cat([image_embeds[:, :1, :],
+                            prompt_prompt_vis,
+                            image_embeds[:, 1:, :],], dim=1)
+    prompt_mask_vis = torch.ones(prompt_prompt_vis.shape[:2], dtype=torch.long).to(text_embeds.device)
+    image_masks = torch.cat([image_masks[:, :1],
+                            prompt_mask_vis,
+                            image_masks[:, 1:]], dim=1)
+
+    # PART 4: add modality type embeddings
+    # 0 indicates text, 1 indicates image, 2 is optionally used when a second image is provided (NLVR2)
+    if image_token_type_idx is None:
+        image_token_type_idx = 1
+    text_embeds = text_embeds + self.token_type_embeddings(
+        torch.zeros_like(attention_mask, dtype=torch.long, device=text_embeds.device)
+    )
+    image_embeds = image_embeds + self.token_type_embeddings(
+        torch.full_like(image_masks, image_token_type_idx, dtype=torch.long, device=text_embeds.device)
+    )
+
+    # PART 5: concatenate
+    embeddings = torch.cat([text_embeds, image_embeds], dim=1)
+    masks = torch.cat([attention_mask, image_masks], dim=1)
+
+    return embeddings, masks
