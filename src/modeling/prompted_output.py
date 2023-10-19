@@ -199,4 +199,50 @@ def BERTEmbeddings_prompted_forward(
         mode=mode,
     )
     sequence_output = encoder_outputs[0]
-    pooled_output = self.p
+    pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
+
+    if not return_dict:
+        return (sequence_output, pooled_output) + encoder_outputs[1:]
+
+    from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions
+    return BaseModelOutputWithPoolingAndCrossAttentions(
+        last_hidden_state=sequence_output,
+        pooler_output=pooled_output,
+        past_key_values=encoder_outputs.past_key_values,
+        hidden_states=encoder_outputs.hidden_states,
+        attentions=encoder_outputs.attentions,
+        cross_attentions=encoder_outputs.cross_attentions,
+    )
+
+
+def ViltEmbeddings_prompted_forward(
+    self,
+    input_ids,
+    attention_mask,
+    token_type_ids,
+    pixel_values,
+    pixel_mask,
+    inputs_embeds,
+    image_embeds,
+    image_token_type_idx=1,
+):
+    # PART 1: text embeddings
+    text_embeds = self.text_embeddings(
+        input_ids=input_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
+    )
+
+    # PART 2: patch embeddings (with interpolated position encodings)
+    if image_embeds is None:
+        image_embeds, image_masks, patch_index = self.visual_embed(
+            pixel_values, pixel_mask, max_image_length=self.config.max_image_length
+        )
+    else:
+        image_masks = pixel_mask.flatten(1)
+
+    # PART 3: add prompting layers
+    input_tokens_text = self.prompt_tokens_text.unsqueeze(0).expand(text_embeds.shape[0], -1).to(text_embeds.device)
+    prompt_prompt_text = self.prompt_embedding_text(input_tokens_text) # (B, 5, 768)
+    text_embeds = torch.cat([text_embeds[:, :1, :],
+                            prompt_prompt_text,
+                            text_embeds[:, 1:, :],], dim=1)
+    prompt_mask_text = torch.ones(prompt_prompt_text.shape[:2], dtype=torch.long).to(text_embeds.device)
