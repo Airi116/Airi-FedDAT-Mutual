@@ -136,4 +136,55 @@ class ViltEncoderWrapper(EncoderWrapper):
         """
 
         for p in self.vilt.parameters():
-         
+            p.requires_grad = False
+
+    def freeze_bottom_k_layers(self, k: int):
+        """
+        Freeze embedding parameters and bottom K transformer layer parameters
+        """
+
+        assert k < len(self.vilt.encoder.layer)
+        for p in self.vilt.embeddings.parameters():
+            p.requires_grad = False
+        for i in range(k):
+            for p in self.vilt.encoder.layer[i].parameters():
+                p.requires_grad = False
+
+
+class ViltContinualLearner(ContinualLearner):
+
+    def __init__(self,
+                 ordered_cl_tasks: List[str],
+                 encoder: ViltEncoderWrapper,
+                 encoder_dim: int,
+                 task_configs: Dict,
+                 device: torch.device,
+                 adapter_config):
+
+        """
+        The actual Continual Learning model, that consists of a vision-language encoder and task-specific heads on top
+
+        arguments:
+        ordered_cl_tasks - list of CL task keys that will be encountered by the ContinualLearner
+        encoder - instance of ViltEncoderWrapper class
+        encoder_dim - output dimension of vilt encoder
+        task_configs - dictionary which contains task-specific configurations/hparams for each task in ordered_cl_tasks
+        """
+
+        super().__init__()
+        self.encoder_dim = encoder_dim
+        self.vilt_encoder = encoder
+        self.ordered_cl_tasks = ordered_cl_tasks
+        self.task_configs = task_configs
+        self.device = device
+        self.adapter_config = adapter_config
+
+        self.task_layer_dict = {}
+        for task_key in ordered_cl_tasks:
+            self.add_task_layer(task_key, task_configs[task_key])
+        self.task_layer = nn.ModuleDict(self.task_layer_dict)
+
+    def add_task_layer(self, task_key: str, task_config: Dict):
+
+        """
+        for a new task, add task-specific head according to its t
