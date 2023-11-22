@@ -187,4 +187,45 @@ class ViltContinualLearner(ContinualLearner):
     def add_task_layer(self, task_key: str, task_config: Dict):
 
         """
-        for a new task, add task-specific head according to its t
+        for a new task, add task-specific head according to its task_config parameters
+        task_key - string which indicates which task to do forward pass for
+        task_config - dictionary which contains hparams/other config parameters for that task
+        """
+
+        num_labels = task_config["num_labels"]
+        prev_tasks_count = self.ordered_cl_tasks.index(task_key)
+        num_images = task_config["num_images"]
+
+        num_labels = task_config["num_labels"]
+        if task_config["model_type"] == "classification":
+            num_images = task_config["num_images"]
+            clf_layer = nn.Sequential(
+                OrderedDict([
+                    ("clf_fc0", nn.Linear(self.encoder_dim * num_images, self.encoder_dim * 2)),
+                    ("clf_norm0", nn.LayerNorm(self.encoder_dim * 2)),
+                    ("clf_actv0", nn.GELU()),
+                    ("clf_fc1", nn.Linear(self.encoder_dim * 2, num_labels))
+                ])
+            )
+            self.task_layer_dict[task_key] = clf_layer
+
+        elif task_config["model_type"] == "multi-choice":
+            clf_layer = nn.Sequential(
+                OrderedDict([
+                    ("clf_dropout", nn.Dropout(0.1)),
+                    ("clf_fc0", nn.Linear(self.encoder_dim, 1)),
+                ])
+            )
+            self.task_layer_dict[task_key] = clf_layer
+
+    def forward(self, task_key: str, images: List, texts: List[str]):
+        """
+        Does forward pass of image and text inputs through model,
+        depending on if the task is multichoice or classification with one or more images
+
+        Args:
+        task_key - string which indicates which task to do forward pass for
+        images - list of PIL Image objects
+        texts - list of text strings
+
+        Retur
