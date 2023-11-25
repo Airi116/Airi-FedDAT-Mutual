@@ -228,4 +228,42 @@ class ViltContinualLearner(ContinualLearner):
         images - list of PIL Image objects
         texts - list of text strings
 
-        Retur
+        Returns:
+        https://huggingface.co/docs/transformers/v4.21.1/en/main_classes/output#transformers.modeling_outputs.BaseModelOutputWithPooling
+        """
+
+        task_config = self.task_configs[task_key]
+        if task_config['model_type'] == 'multi-choice':
+            return self.forward_multi_choice(task_key, images, texts, task_config['num_choices'])
+        elif task_config['model_type'] == 'classification':
+            if task_config['num_images'] == 1:
+                return self.forward_single_image(task_key, images, texts)
+            else:
+                return self.forward_multi_images(task_key, images, texts, task_config['num_images'])
+
+    def forward_single_image(self, task_key: str, images: List, texts: List[str]) -> (torch.FloatTensor, torch.FloatTensor):
+        """
+        Does forward pass of image and text inputs through model,
+        where every input has one image and one text
+
+        Args:
+        task_key - string which indicates which task to do forward pass for
+        images - list of PIL Image objects
+        texts - list of text strings
+
+        Returns:
+        encoder_output: https://huggingface.co/docs/transformers/v4.21.1/en/main_classes/output#transformers.modeling_outputs.BaseModelOutputWithPooling
+        output_logits: logits for each output class (batch_size, num_labels)
+        """
+
+        encodings = self.vilt_encoder.process_inputs(images, texts)  # dict{input_ids, attention_mask, token_type_ids, pixel_values, pixel_mask}
+        encoder_output = self.vilt_encoder(**encodings)  # Tensor(2, 768)
+
+        output_logits = self.task_layer[task_key](encoder_output)  # Tensor(2, num_answers)
+
+        return encoder_output, output_logits
+
+    def forward_multi_images(self, task_key: str, images: List[List], texts: List[str], num_images=2):
+
+        '''
+        Does forward pass of image and text inputs th
