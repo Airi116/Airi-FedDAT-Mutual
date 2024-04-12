@@ -266,4 +266,42 @@ class ViltContinualLearner(ContinualLearner):
     def forward_multi_images(self, task_key: str, images: List[List], texts: List[str], num_images=2):
 
         '''
-        Does forward pass of image and text inputs th
+        Does forward pass of image and text inputs through model,
+        where every input has multiple images and one text
+        For tasks like NLVR2, do multiple text-image passes with each image and aggregate results
+
+        Args:
+        task_key - string which indicates which task to do forward pass for
+        images - batch_size-sized list of num_images-sized list of PIL Image objects
+        texts - list of text strings
+
+        Returns:
+        pooled_output: pooled feature Tensor of size (batch_size, num_images*hidden_size)
+        output_logits: logits for each output class (batch_size, num_labels)
+        '''
+
+        flat_images_list = list(itertools.chain(*images))
+        encodings = self.vilt_encoder.process_inputs(flat_images_list, texts)
+
+        input_ids, attention_mask, token_type_ids = \
+            encodings['input_ids'], encodings['attention_mask'], encodings['token_type_ids']
+        # reshape
+        bs = len(input_ids)
+        pixel_values = encodings['pixel_values'].view(bs, num_images, *encodings["pixel_values"].shape[-3:])
+        pixel_mask = encodings['pixel_mask'].view(bs, num_images, *encodings["pixel_mask"].shape[-2:])
+
+        # https://github.com/huggingface/transformers/blob/v4.16.2/src/transformers/models/vilt/modeling_vilt.py#L1351
+        pooler_outputs = []
+        for i in range(num_images):
+            # forward every image through the model
+            encodings = {
+                'input_ids': input_ids,
+                'attention_mask': attention_mask,
+                'token_type_ids': token_type_ids,
+                'pixel_values': pixel_values[:, i, :, :, :],
+                'pixel_mask': pixel_mask[:, i, :, :],
+                'image_token_type_idx': i + 1,
+            }
+            pooled_out = self.vilt_encoder(**encodings)
+            pooler_outputs.append(pooled_out)
+        pooled_output = torch.cat(pooler_outputs, dim=-
