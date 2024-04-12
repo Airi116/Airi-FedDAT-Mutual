@@ -304,4 +304,41 @@ class ViltContinualLearner(ContinualLearner):
             }
             pooled_out = self.vilt_encoder(**encodings)
             pooler_outputs.append(pooled_out)
-        pooled_output = torch.cat(pooler_outputs, dim=-
+        pooled_output = torch.cat(pooler_outputs, dim=-1) # [bs, 1536]
+
+        output_logits = self.task_layer[task_key](pooled_output)
+        return pooled_output, output_logits
+
+    def forward_multi_choice(self, task_key: str, images: List, texts: List[List[str]], num_choices):
+
+        '''
+        Does forward pass of image and text inputs through model,
+        where every input has one image and multiple text choices
+        For tasks like VCR, do multiple text-image passes with each text, and select the text with highest score
+
+        Args:
+        task_key - string which indicates which task to do forward pass for
+        images - batch_size-sized list of num_images-sized list of PIL Image objects
+        texts - list of text strings
+
+        Returns:
+        pooled_output: pooled feature Tensor of size (batch_size, num_images*hidden_size)
+        output_logits: logits for each output class (batch_size, num_labels)
+        '''
+
+        texts_list = list(itertools.chain(*texts))
+        encodings = self.vilt_encoder.process_inputs(images, texts_list)
+        bs = len(images)
+        unflat_input_ids = encodings['input_ids'].view(bs, num_choices, -1)
+        unflat_attention_mask = encodings['attention_mask'].view(bs, num_choices, -1)
+        unflat_token_type_ids = encodings['token_type_ids'].view(bs, num_choices, -1)
+        pixel_values, pixel_mask = encodings['pixel_values'], encodings['pixel_mask']
+
+        pooler_outputs = []
+        for i in range(num_choices):
+            # Forward every choice through the model
+            encodings = {
+                'input_ids': unflat_input_ids[:, i, :],
+                'attention_mask': unflat_attention_mask[:, i, :],
+                'token_type_ids': unflat_token_type_ids[:, i, :],
+                'pixel_
