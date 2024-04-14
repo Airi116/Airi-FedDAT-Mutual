@@ -384,4 +384,44 @@ class ViltContinualLearner(ContinualLearner):
 
 
 
-def load_vilt_encoder(logger, checkpoint_name: str, device: torch.device, pretrained_vilt_name
+def load_vilt_encoder(logger, checkpoint_name: str, device: torch.device, pretrained_vilt_name: str) -> ViltEncoderWrapper:
+    """
+    Method to load ViltEncoder wrapper, around specified pre-trained vilt
+
+    args:
+    checkpoint_name: name of ViltEncoder checkpoint to load encoder from
+    device: torch.device
+    pretrained_vilt_name: pretrained vilt name for processor/config
+
+    returns:
+    vilt_encoder: ViltEncoderWrapper initialized with checkpoint
+    """
+    logger.info("-" * 100)
+    logger.info("Loading ViLT encoder model: {}".format(checkpoint_name))
+    vilt_processor = ViltProcessor.from_pretrained(pretrained_vilt_name)
+
+    if checkpoint_name == pretrained_vilt_name:  # load pretrained encoder todo: when is checkpoint_name == pretrained_vilt_name?
+        vilt = ViltModel.from_pretrained(pretrained_vilt_name)
+        vilt_encoder = ViltEncoderWrapper(vilt_processor, vilt, device)  # todo: only called once?
+
+    else:  # load pre-finetuned encoder, todo: when use this else?
+        config = ViltConfig.from_pretrained(pretrained_vilt_name)
+        vilt = ViltModel(config)  # random init.
+        vilt_encoder = ViltEncoderWrapper(vilt_processor, vilt, device)
+        if "nlvr2" in checkpoint_name:
+            vilt_encoder.expand_modality_type_embeddings()
+
+        ckpt = torch.load(checkpoint_name)
+        vilt_encoder.load_state_dict(ckpt)  # loaded, todo: why load weights after Wrapper?
+
+    logger.info("Successfully loaded pretrained ViLT encoder")
+    return vilt_encoder
+
+
+def create_vilt_continual_learner_model(logger, model_name_or_path: str,
+                                        ordered_cl_tasks: List[str],
+                                        model_config: Dict,
+                                        task_configs: Dict,
+                                        device: torch.device,):
+    """
+    Creates an instance of ViltContinualLearner, with the encoder initialized from model_name_or_
