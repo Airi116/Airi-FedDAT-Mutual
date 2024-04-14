@@ -424,4 +424,48 @@ def create_vilt_continual_learner_model(logger, model_name_or_path: str,
                                         task_configs: Dict,
                                         device: torch.device,):
     """
-    Creates an instance of ViltContinualLearner, with the encoder initialized from model_name_or_
+    Creates an instance of ViltContinualLearner, with the encoder initialized from model_name_or_path
+
+    Args:
+    model_name_or_path: Name/path of model to load encoder checkpoint from
+    ordered_cl_tasks: List of task_keys to do continual learning on
+    model_config: Dictionary containing ViLT model configuration
+    task_configs: Dictionary containing task-specific configurations for the CL tasks
+    device: cpu/cuda
+
+    Returns:
+    cl_model: instance of ViltContinualLearner
+    """
+
+    encoder = load_vilt_encoder(logger, checkpoint_name=model_name_or_path,
+                                device=device,
+                                pretrained_vilt_name=model_name_or_path)
+
+    cl_model = ViltContinualLearner(ordered_cl_tasks=ordered_cl_tasks,
+                                    encoder=encoder,
+                                    encoder_dim=model_config["encoder_dim"],
+                                    task_configs=task_configs,
+                                    device=device,
+                                    adapter_config=model_config['adapter_config'] if 'adapter_config' in model_config else None)
+    logger.info("Successfully created and initialized ViLT Continual Leaner model")
+
+    return cl_model
+
+
+def convert_batch_to_vilt_input_dict(batch: Dict):
+    """
+    Convert inputs from batch_collate into format consumable by the ViltProcessor
+    """
+    return {"images": batch["images"], "texts": batch["raw_texts"]}
+
+
+def convert_seq_batch_to_vilt_input_dict(batch: List, mean_image: Image):
+    return {"images": [mean_image], "texts": list(batch[0])}
+
+
+def convert_mc_batch_to_vilt_input_dict(batch: List, mean_image: Image):
+    texts_a, texts_b = batch[0], batch[1]
+    bs = len(texts_a)
+
+    texts_b = list(itertools.chain(*texts_b))  # texts_b (n_choice, bs) -> (n_choice*bs,)
+    text_pairs = [[texts_a[i % bs], tb] for i, tb in enumerate(texts_b)
