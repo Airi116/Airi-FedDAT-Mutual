@@ -341,4 +341,47 @@ class ViltContinualLearner(ContinualLearner):
                 'input_ids': unflat_input_ids[:, i, :],
                 'attention_mask': unflat_attention_mask[:, i, :],
                 'token_type_ids': unflat_token_type_ids[:, i, :],
-                'pixel_
+                'pixel_values': pixel_values,
+                'pixel_mask': pixel_mask
+            }
+            pooled_out = self.vilt_encoder(**encodings)
+            pooler_outputs.append(pooled_out)
+        #pooled_output = torch.cat(pooler_outputs, dim=-1) # [bs, 1536]
+        pooled_output = torch.stack(pooler_outputs, dim=0).transpose(0, 1)
+
+        output_logits = self.task_layer[task_key](pooled_output).squeeze()
+        return pooled_output, output_logits
+
+    ############## Adapter-specific methods ##############
+    def add_adapter(self):
+        for i in range(12):
+            self.vilt_encoder.vilt.encoder.layer[i].output = Adaptered_ViltOutput(
+                self.vilt_encoder.vilt.encoder.layer[i].output,
+                self.adapter_config,
+            )
+
+    def set_active_adapter(self, name):
+        for i in range(len(self.vilt_encoder.vilt.encoder.layer)):
+            self.vilt_encoder.vilt.encoder.layer[i].output.adapter.set_active_adapter(name)
+
+    def activate_gating(self):
+        for i in range(len(self.vilt_encoder.vilt.encoder.layer)):
+            self.vilt_encoder.vilt.encoder.layer[i].output.adapter.activate_gating()
+
+    def deactivate_gating(self):
+        for i in range(len(self.vilt_encoder.vilt.encoder.layer)):
+            self.vilt_encoder.vilt.encoder.layer[i].output.adapter.deactivate_gating()
+
+    def get_param_adapter(self, name):
+        l = []
+        for i in range(len(self.vilt_encoder.vilt.encoder.layer)):
+            nd = getattr(self.vilt_encoder.vilt.encoder.layer[i].output.adapter, f'{name}_down')
+            l.append(nd.parameters())
+            nu = getattr(self.vilt_encoder.vilt.encoder.layer[i].output.adapter, f'{name}_up')
+            l.append(nu.parameters())
+        return l
+
+
+
+
+def load_vilt_encoder(logger, checkpoint_name: str, device: torch.device, pretrained_vilt_name
