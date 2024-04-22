@@ -221,3 +221,81 @@ def eval_acc(args, model, eval_dataloader, device, batch2inputs_converter):
 
     model.eval()
     eval_score = 0
+    for step, batch in enumerate(tqdm(eval_dataloader, desc='Evaluating...')):
+        labels = batch['labels']
+        inputs = batch2inputs_converter(batch)
+        with torch.no_grad():
+            logits = model(**inputs)
+
+        batch_scores = (logits.argmax(-1).cpu() == labels)
+        eval_score += batch_scores.sum().item()
+
+    eval_score = eval_score/len(eval_dataloader.dataset)*100.0
+    logger.info(f'Eval_acc: {eval_score:.3f}')
+
+    model.train()
+    return eval_score
+
+
+
+def main():
+
+    parser = argparse.ArgumentParser()
+
+    ## Required parameters
+    parser.add_argument("--task_name", default=None, type=str, required=True,
+                        help="The name of the vision-only task.")
+    parser.add_argument("--encoder_name", default=None, type=str, required=True, choices=['vilt'],
+                        help="The name of the base pretrained encoder.")
+    parser.add_argument("--model_catog", default='vilt-vl', type=str,
+                        help="The catogory for model class.")
+    parser.add_argument("--checkpoint_name", default=None, type=str, required=True,
+                        help="Name of the checkpoint model load.")
+    parser.add_argument("--pretrained_model_name", default="dandelin/vilt-b32-mlm", type=str,
+                        help="Name of the pretrained model")
+    parser.add_argument("--output_dir", type=str, required=True,
+                        help="Name of output directory, where all experiment results and checkpoints are saved.")
+
+    parser.add_argument("--batch_size", type=int, default=32,
+                        help="Batch size.")
+    parser.add_argument("--num_workers", type=int, default=2,
+                        help="Number of workers for dataloader")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed.")
+
+    # only used by few-shot downstream tasks
+    parser.add_argument("--num_shot", type=float,
+                        help="Number of training data per class OR the ratio of the original training set")
+    parser.add_argument("--subsample_seed", type=int,
+                        help="Random seed for few-shot sampling.")
+
+
+    args = parser.parse_args()
+    print(args)
+
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
+    device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+    set_seed(args)
+
+
+    # Load the Encoder model
+    model_config = model_configs[args.model_catog]
+    load_encoder_method = load_encoder_map[args.encoder_name]
+    encoder = load_encoder_method(args.checkpoint_name, device, args.pretrained_model_name)
+
+    results = []
+    logger.info("-"*100)
+    logger.info("Training models on downstream vision-only tasks...")
+
+    # Load the correct training method for current CL task, and call the training method
+    task_config = task_configs[args.task_name]
+    logger.info("-"*100)
+    train_vision(args, encoder, task_config, model_config, tokenizer, device)
+
+if __name__ == '__main__':
+    main()
