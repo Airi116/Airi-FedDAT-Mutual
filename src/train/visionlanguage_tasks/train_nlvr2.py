@@ -48,4 +48,42 @@ class NLVR2Trainer(TaskTrainer):
         '''
         Initializes a Trainer that handles training of a model on the VCR task
 
-        args: Arguments pro
+        args: Arguments provided by user
+        task_configs: dictionary containing task-specific configuration parameters for all tasks
+        model_config: dictionary containing model-specific configuration parameters
+        device: cuda/cpu
+        '''
+
+        super().__init__()
+
+        self.args = args
+        self.local_epochs = args.local_epochs
+        self.device = device
+        self.accelerator = accelerator
+        self.task_output_dir = task_output_dir
+        self.task_key = task_key
+
+        self.nlvr_config = task_configs['nlvr2']
+        self.data_dir = os.path.join(args.climb_data_dir, self.nlvr_config['data_dir'])
+
+        # Model-specific stuff
+        self.visual_input_type = model_config['visual_input_type']
+        self.batch2inputs_converter = model_config['batch2inputs_converter']
+
+        # Create dataloaders for training and validation
+        self.nlvr_train_dataloader = build_nlvr2_dataloader(args=args,
+                                                    data_dir=self.data_dir,
+                                                    split='train',
+                                                    visual_input_type=self.visual_input_type)
+
+        self.nlvr_val_dataloader = build_nlvr2_dataloader(args=args,
+                                                     data_dir=self.data_dir,
+                                                     split='val',
+                                                     visual_input_type=self.visual_input_type)
+
+        # Training hyperparameters
+        self.num_epochs = self.nlvr_config['num_epochs']
+        self.lr = self.nlvr_config['lr']
+        self.adam_epsilon = self.nlvr_config['adam_epsilon']
+        self.weight_decay = self.nlvr_config['weight_decay']
+        self.loss_criterion = nn.
