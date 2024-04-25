@@ -1,3 +1,4 @@
+
 import argparse
 import datetime
 import json
@@ -14,18 +15,17 @@ import pdb
 from tqdm import tqdm
 from typing import List, Dict, Tuple
 
+sys.path.insert(0, '.')
+
 import numpy as np
 import torch
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_polynomial_decay_schedule_with_warmup
 
-from src.data.visionlanguage_datasets.nlvr2_dataset import build_nlvr2_dataloader
+from src.data.visionlanguage_datasets.vcr_dataset import build_vcr_dataloader
 from src.train.visionlanguage_tasks.task_trainer import TaskTrainer
 from src.utils.wandb import wandb_logger
-
-sys.path.insert(0, '.')
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -33,7 +33,8 @@ logging.basicConfig(
         datefmt='%m/%d/%Y %H:%M:%S',
         level=logging.INFO)
 
-class NLVR2Trainer(TaskTrainer):
+
+class VCRTrainer(TaskTrainer):
 
     def __init__(self,
                  logger,
@@ -63,34 +64,37 @@ class NLVR2Trainer(TaskTrainer):
         self.task_output_dir = task_output_dir
         self.task_key = task_key
 
-        self.nlvr_config = task_configs['nlvr2']
-        self.data_dir = os.path.join(args.climb_data_dir, self.nlvr_config['data_dir'])
+        self.vcr_config = task_configs['vcr']
+        self.data_dir = os.path.join(args.climb_data_dir, self.vcr_config['data_dir'])
+        self.task_type = self.vcr_config['task_type']
 
         # Model-specific stuff
         self.visual_input_type = model_config['visual_input_type']
         self.batch2inputs_converter = model_config['batch2inputs_converter']
 
         # Create dataloaders for training and validation
-        self.nlvr_train_dataloader = build_nlvr2_dataloader(args=args,
-                                                    data_dir=self.data_dir,
-                                                    split='train',
-                                                    visual_input_type=self.visual_input_type)
+        self.vcr_train_dataloader = build_vcr_dataloader(args=args,
+                                                data_dir=self.data_dir,
+                                                split='train',
+                                                task_type=self.task_type,
+                                                visual_input_type=self.visual_input_type)
 
-        self.nlvr_val_dataloader = build_nlvr2_dataloader(args=args,
-                                                     data_dir=self.data_dir,
-                                                     split='val',
-                                                     visual_input_type=self.visual_input_type)
+        self.vcr_val_dataloader = build_vcr_dataloader(args=args,
+                                                data_dir=self.data_dir,
+                                                split='val',
+                                                task_type=self.task_type,
+                                                visual_input_type=self.visual_input_type)
 
         # Training hyperparameters
-        self.num_epochs = self.nlvr_config['num_epochs']
-        self.lr = self.nlvr_config['lr']
-        self.adam_epsilon = self.nlvr_config['adam_epsilon']
-        self.weight_decay = self.nlvr_config['weight_decay']
+        self.num_epochs = self.vcr_config['num_epochs']
+        self.lr = self.vcr_config['lr']
+        self.adam_epsilon = self.vcr_config['adam_epsilon']
+        self.weight_decay = self.vcr_config['weight_decay']
         self.loss_criterion = nn.CrossEntropyLoss()
 
-        self.nlvr_train_dataloader.dataset.convert_to_low_shot(num_shots_per_class=2048)
-        self.nlvr_val_dataloader.dataset.convert_to_low_shot(num_shots_per_class=256)
-        self.max_steps = len(self.nlvr_train_dataloader) * self.num_epochs
+        self.vcr_train_dataloader.dataset.convert_to_low_shot(low_shot_percentage=0.05)
+        self.vcr_val_dataloader.dataset.convert_to_low_shot(low_shot_percentage=0.05)
+        self.max_steps = len(self.vcr_train_dataloader) * self.num_epochs
         self.warmup_ratio = 0.1 # TODO remove hard code
         self.hparams = {
                         'lr': self.lr,
@@ -99,7 +103,7 @@ class NLVR2Trainer(TaskTrainer):
         }
 
     def get_train_dataloader(self):
-        return self.nlvr_train_dataloader
+        return self.vcr_train_dataloader
 
     def get_collate_fn(self):
-        return self.nlvr_train_dataloader.collate_fn
+        return self.vcr_train_dataloader.collate_fn

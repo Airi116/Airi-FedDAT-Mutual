@@ -1,3 +1,4 @@
+
 import argparse
 import datetime
 import json
@@ -14,18 +15,18 @@ import pdb
 from tqdm import tqdm
 from typing import List, Dict, Tuple
 
+sys.path.insert(0, '.')
+
 import numpy as np
 import torch
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_polynomial_decay_schedule_with_warmup
 
-from src.data.visionlanguage_datasets.nlvr2_dataset import build_nlvr2_dataloader
+from src.data.image_datasets.flickr30kimages_dataset import Flickr30KImagesDataset
+from src.data.visionlanguage_datasets.snli_ve_dataset import build_snli_ve_dataloader
 from src.train.visionlanguage_tasks.task_trainer import TaskTrainer
 from src.utils.wandb import wandb_logger
-
-sys.path.insert(0, '.')
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -33,7 +34,7 @@ logging.basicConfig(
         datefmt='%m/%d/%Y %H:%M:%S',
         level=logging.INFO)
 
-class NLVR2Trainer(TaskTrainer):
+class SNLIVETrainer(TaskTrainer):
 
     def __init__(self,
                  logger,
@@ -63,34 +64,43 @@ class NLVR2Trainer(TaskTrainer):
         self.task_output_dir = task_output_dir
         self.task_key = task_key
 
-        self.nlvr_config = task_configs['nlvr2']
-        self.data_dir = os.path.join(args.climb_data_dir, self.nlvr_config['data_dir'])
+        self.snli_ve_config = task_configs['snli-ve']
+        self.data_dir = os.path.join(args.climb_data_dir, self.snli_ve_config['data_dir'])
 
         # Model-specific stuff
         self.visual_input_type = model_config['visual_input_type']
         self.batch2inputs_converter = model_config['batch2inputs_converter']
 
-        # Create dataloaders for training and validation
-        self.nlvr_train_dataloader = build_nlvr2_dataloader(args=args,
-                                                    data_dir=self.data_dir,
-                                                    split='train',
-                                                    visual_input_type=self.visual_input_type)
+        # Load Flickr30K Images dataset for image data backbone
+        images_source = self.snli_ve_config['images_source']
+        flickr30k_config = task_configs[images_source]
+        images_dataset = Flickr30KImagesDataset(os.path.join(args.climb_data_dir, flickr30k_config['data_dir']),
+                         visual_input_type=self.visual_input_type)
 
-        self.nlvr_val_dataloader = build_nlvr2_dataloader(args=args,
-                                                     data_dir=self.data_dir,
-                                                     split='val',
-                                                     visual_input_type=self.visual_input_type)
+        # Create dataloaders for training and validation
+        self.snli_ve_train_dataloader = build_snli_ve_dataloader(args=args,
+                                                                 data_dir=self.data_dir,
+                                                                 images_dataset=images_dataset,
+                                                                 split='train',
+                                                                 visual_input_type=self.visual_input_type)
+
+        self.snli_ve_dev_dataloader = build_snli_ve_dataloader(args=args,
+                                                               data_dir=self.data_dir,
+                                                               images_dataset=images_dataset,
+                                                               split='dev',
+                                                               visual_input_type=self.visual_input_type)
 
         # Training hyperparameters
-        self.num_epochs = self.nlvr_config['num_epochs']
-        self.lr = self.nlvr_config['lr']
-        self.adam_epsilon = self.nlvr_config['adam_epsilon']
-        self.weight_decay = self.nlvr_config['weight_decay']
+        self.num_epochs = self.snli_ve_config['num_epochs']
+        self.lr = self.snli_ve_config['lr']
+        self.adam_epsilon = self.snli_ve_config['adam_epsilon']
+        self.weight_decay = self.snli_ve_config['weight_decay']
         self.loss_criterion = nn.CrossEntropyLoss()
 
-        self.nlvr_train_dataloader.dataset.convert_to_low_shot(num_shots_per_class=2048)
-        self.nlvr_val_dataloader.dataset.convert_to_low_shot(num_shots_per_class=256)
-        self.max_steps = len(self.nlvr_train_dataloader) * self.num_epochs
+        self.snli_ve_train_dataloader.dataset.convert_to_low_shot(num_shots_per_class=2048)
+        self.snli_ve_dev_dataloader.dataset.convert_to_low_shot(num_shots_per_class=256)
+
+        self.max_steps = len(self.snli_ve_train_dataloader) * self.num_epochs
         self.warmup_ratio = 0.1 # TODO remove hard code
         self.hparams = {
                         'lr': self.lr,
@@ -99,7 +109,7 @@ class NLVR2Trainer(TaskTrainer):
         }
 
     def get_train_dataloader(self):
-        return self.nlvr_train_dataloader
+        return self.snli_ve_train_dataloader
 
     def get_collate_fn(self):
-        return self.nlvr_train_dataloader.collate_fn
+        return self.snli_ve_train_dataloader.collate_fn
