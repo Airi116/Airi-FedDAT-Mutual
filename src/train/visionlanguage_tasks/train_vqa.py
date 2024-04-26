@@ -80,3 +80,38 @@ class VQATrainer(TaskTrainer):
         self.vqa_train_dataloader = build_vqa_dataloader(args=args,
                                                     data_dir=self.data_dir,
                                                     images_dataset=self.images_dataset,
+                                                    split='train',
+                                                    visual_input_type=self.visual_input_type)
+
+        self.vqa_val_dataloader = build_vqa_dataloader(args=args,
+                                                  data_dir=self.data_dir,
+                                                  images_dataset=self.images_dataset,
+                                                  split='val',
+                                                  visual_input_type=self.visual_input_type)
+
+        # Training hyperparameters
+        self.num_epochs = self.vqa_config['num_epochs']
+        self.lr = self.vqa_config['lr']
+        self.adam_epsilon = self.vqa_config['adam_epsilon']
+        self.weight_decay = self.vqa_config['weight_decay']
+        self.hparams = {
+                        'lr': self.lr,
+                        'weight_decay': self.weight_decay,
+                        'adam_epsilon': self.adam_epsilon,
+        }
+
+        self.loss_criterion = nn.BCEWithLogitsLoss(reduction='mean')
+
+        self.vqa_train_dataloader.dataset.convert_to_low_shot(low_shot_percentage=0.05)
+        self.vqa_val_dataloader.dataset.convert_to_low_shot(low_shot_percentage=0.05)
+        self.max_steps = len(self.vqa_train_dataloader) * self.num_epochs
+        self.warmup_ratio = 0.1 # TODO remove hard code
+
+    def compute_score_with_logits(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        '''
+        Given logits for each answer in VQA classification, selects answer with max logit and returns VQA-score for that answer
+        logits: logits for each answer - size=(batch_size, num_answers)
+        labels: label for each answer in {0, 0.3, 0.6, 1} (batch_size, num_answers)
+
+        Returns:
+        
