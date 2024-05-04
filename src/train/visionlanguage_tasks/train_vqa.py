@@ -114,4 +114,17 @@ class VQATrainer(TaskTrainer):
         labels: label for each answer in {0, 0.3, 0.6, 1} (batch_size, num_answers)
 
         Returns:
-        
+        scores: score of predicted answer (batch_size, num_answers)
+        '''
+
+        logits = torch.max(logits, 1)[1].data # argmax
+        one_hots = torch.zeros(*labels.size()).to(self.device)
+        one_hots.scatter_(1, logits.view(-1, 1), 1)
+        scores = (one_hots * labels)
+        return scores
+
+    def get_train_dataloader(self):
+        return self.vqa_train_dataloader
+
+    def get_collate_fn(self):
+        return self.vqa_train_dataloader.collate_fn
