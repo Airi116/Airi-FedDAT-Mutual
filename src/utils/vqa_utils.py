@@ -60,4 +60,12 @@ def target_tensor(len, labels, scores):
 
 
 def target_tensor(num_labels, labels, scores):
-  
+    """ create the target by labels and scores """
+    target = torch.zeros(num_labels)
+    target[labels] = torch.tensor(scores)
+
+    return target
+
+
+if __name__ == '__main__':
+    create_vqa_labels('/nfs/data2/yyang/climb_data/vqav2/')
